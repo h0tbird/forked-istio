@@ -1,10 +1,50 @@
+<!DOCTYPE html>
 <html>
   <head>
-    <title>Chart repo</title>
+    <title>h0tbird-istio</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background-color: #f0f0f0;
+        margin: 0;
+        padding: 20px;
+      }
+      .container {
+        background-color: white;
+        padding: 20px;
+        border-radius: 8px;
+        max-width: 600px;
+        margin: auto;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      }
+      h1 {
+        color: #2c3e50;
+        text-align: center;
+      }
+      h3 {
+        color: #3498db;
+      }
+      pre {
+        background-color: #2c3e50;
+        color: white;
+        padding: 10px;
+        border-radius: 5px;
+        overflow-x: auto;
+      }
+      p {
+        margin-bottom: 15px;
+      }
+    </style>
   </head>
   <body>
-    <h3>Point Helm at this repo to see charts.</h3>
-    <p>helm repo add h0tbird-istio https://h0tbird.github.io/forked-istio</p>
-    <p>helm repo update</p>
+    <div class="container">
+      <h1>h0tbird-istio</h1>
+      <h3>Point Helm at this repo to see charts:</h3>
+      <pre><code>helm repo add h0tbird-istio https://h0tbird.github.io/forked-istio
+helm repo update
+helm search repo h0tbird-istio --version 1.24.3-1
+</code></pre>
+    </div>
   </body>
 </html>
+

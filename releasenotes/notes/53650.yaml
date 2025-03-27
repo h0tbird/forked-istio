@@ -1,7 +1,0 @@
-apiVersion: release-notes/v2
-kind: feature
-area: istioctl
-issue: []
-releaseNotes:
-  - |
-    **Improved** output of `istioctl pc secret` to display trust bundles provided by SPIRE.

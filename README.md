@@ -33,12 +33,14 @@ helm package manifests/charts/gateway --app-version 1.24.3 --version 1.24.3-1
 helm package manifests/charts/istio-cni --app-version 1.24.3 --version 1.24.3-1
 helm package manifests/charts/istio-control/istio-discovery/ --app-version 1.24.3 --version 1.24.3-1
 helm package manifests/charts/ztunnel --app-version 1.24.3 --version 1.24.3-1
+mv *-1.24.3-1.tgz /tmp # If overriding existing versions.
 ```
 
 Switch to the `helm-repo` branch and regenerate the index:
 ```bash
 git checkout helm-repo
+mv /tmp/*-1.24.3-1.tgz . # If overriding existing versions.
 helm repo index . --url https://h0tbird.github.io/forked-istio
-git commit -am "Your commit msg"
+git commit -am "Update the helm index"
 git push
 ```

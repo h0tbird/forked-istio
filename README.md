@@ -23,8 +23,7 @@ helm search repo h0tbird-istio --version 1.24.3-1
 
 Do some work on a patch branch:
 ```bash
-git checkout -b patch-1-1.24.3 1.24.3
-# Patch the helm charts
+git checkout -b 1.24.3-patch-1 1.24.3
 ```
 
 Package the helm charts:

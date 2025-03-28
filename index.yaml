@@ -3,9 +3,9 @@ entries:
   base:
   - apiVersion: v2
     appVersion: 1.24.3
-    created: "2025-03-28T11:30:30.020283+01:00"
+    created: "2025-03-28T12:03:31.848295+01:00"
     description: Helm chart for deploying Istio cluster resources and CRDs
-    digest: 9267ee8bfe19c16336811c76538315b6d4862aed8624c30ca48af2b8bc378cc3
+    digest: 72ab86203b12fbca987d8bd30442b75726513e6d2ed44fa90509f7732bbc8c48
     icon: https://istio.io/latest/favicons/android-192x192.png
     keywords:
     - istio
@@ -13,14 +13,14 @@ entries:
     sources:
     - https://github.com/istio/istio
     urls:
-    - https://h0tbird.github.io/forked-istio/base-1.24.3-1.tgz
-    version: 1.24.3-1
+    - https://h0tbird.github.io/forked-istio/base-1.24.3-patch-1.tgz
+    version: 1.24.3-patch-1
   cni:
   - apiVersion: v2
     appVersion: 1.24.3
-    created: "2025-03-28T11:30:30.031456+01:00"
+    created: "2025-03-28T12:03:31.848878+01:00"
     description: Helm chart for istio-cni components
-    digest: bd55874a2e6e8dcca5bd3fb26022c4a8babb156f22326a1c25a483a828b3ea43
+    digest: 4548d7b1416ef354e1274653234ffaa171323bffaa8dd87dda4ad7529fd82601
     icon: https://istio.io/latest/favicons/android-192x192.png
     keywords:
     - istio-cni
@@ -29,14 +29,14 @@ entries:
     sources:
     - https://github.com/istio/istio
     urls:
-    - https://h0tbird.github.io/forked-istio/cni-1.24.3-1.tgz
-    version: 1.24.3-1
+    - https://h0tbird.github.io/forked-istio/cni-1.24.3-patch-1.tgz
+    version: 1.24.3-patch-1
   gateway:
   - apiVersion: v2
     appVersion: 1.24.3
-    created: "2025-03-28T11:30:30.032409+01:00"
+    created: "2025-03-28T12:03:31.849474+01:00"
     description: Helm chart for deploying Istio gateways
-    digest: e2428677e6eb77deaae347bcb8fddd978a27fd089d6441e8fa6622bb47a45d66
+    digest: c81e51c59505ebef01138831c375e3af146d67c8135cdde08c4b7c6706f303f3
     icon: https://istio.io/latest/favicons/android-192x192.png
     keywords:
     - istio
@@ -46,14 +46,14 @@ entries:
     - https://github.com/istio/istio
     type: application
     urls:
-    - https://h0tbird.github.io/forked-istio/gateway-1.24.3-1.tgz
-    version: 1.24.3-1
+    - https://h0tbird.github.io/forked-istio/gateway-1.24.3-patch-1.tgz
+    version: 1.24.3-patch-1
   istiod:
   - apiVersion: v2
     appVersion: 1.24.3
-    created: "2025-03-28T11:30:30.041111+01:00"
+    created: "2025-03-28T12:03:31.850716+01:00"
     description: Helm chart for istio control plane
-    digest: b3528a7f23988c8b12df581a9017618e1a6486e9890389444d94cecd708fac61
+    digest: b1461327c2371bd10ab900f7420a082f859896c5a6962b754ccb6f3d6c603091
     icon: https://istio.io/latest/favicons/android-192x192.png
     keywords:
     - istio
@@ -63,14 +63,14 @@ entries:
     sources:
     - https://github.com/istio/istio
     urls:
-    - https://h0tbird.github.io/forked-istio/istiod-1.24.3-1.tgz
-    version: 1.24.3-1
+    - https://h0tbird.github.io/forked-istio/istiod-1.24.3-patch-1.tgz
+    version: 1.24.3-patch-1
   ztunnel:
   - apiVersion: v2
     appVersion: 1.24.3
-    created: "2025-03-28T11:30:30.047547+01:00"
+    created: "2025-03-28T12:03:31.851258+01:00"
     description: Helm chart for istio ztunnel components
-    digest: 3a4e4c6eec4dee9c228c379aeb7d0f26dbb745b8fc779537e1473592b6a74ff4
+    digest: 64d15be1c030dd9fea15293b66656322f8ec2961bd095f5c9cd0a0ebc9b5f28d
     icon: https://istio.io/latest/favicons/android-192x192.png
     keywords:
     - istio-ztunnel
@@ -79,6 +79,6 @@ entries:
     sources:
     - https://github.com/istio/istio
     urls:
-    - https://h0tbird.github.io/forked-istio/ztunnel-1.24.3-1.tgz
-    version: 1.24.3-1
-generated: "2025-03-28T11:30:30.012932+01:00"
+    - https://h0tbird.github.io/forked-istio/ztunnel-1.24.3-patch-1.tgz
+    version: 1.24.3-patch-1
+generated: "2025-03-28T12:03:31.845836+01:00"

@@ -31,7 +31,6 @@ Package the helm charts:
 helm package manifests/charts/base --app-version 1.24.3 --version 1.24.3-1
 helm package manifests/charts/gateway --app-version 1.24.3 --version 1.24.3-1
 helm package manifests/charts/istio-cni --app-version 1.24.3 --version 1.24.3-1
-helm package manifests/charts/istio-control --app-version 1.24.3 --version 1.24.3-1
 helm package manifests/charts/istio-control/istio-discovery/ --app-version 1.24.3 --version 1.24.3-1
 helm package manifests/charts/ztunnel --app-version 1.24.3 --version 1.24.3-1
 ```

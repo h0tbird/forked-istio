@@ -105,13 +105,21 @@ spec:
         {{- end}}
         ]
     - name: GOMEMLIMIT
+    {{- if (index .ObjectMeta.Annotations `pilot.istio.io/GOMEMLIMIT`) }}
+      value: "{{ index .ObjectMeta.Annotations `pilot.istio.io/GOMEMLIMIT` }}"
+    {{- else }}
       valueFrom:
         resourceFieldRef:
           resource: limits.memory
+    {{- end }}
     - name: GOMAXPROCS
+    {{- if (index .ObjectMeta.Annotations `pilot.istio.io/GOMAXPROCS`) }}
+      value: "{{ index .ObjectMeta.Annotations `pilot.istio.io/GOMAXPROCS` }}"
+    {{- else }}
       valueFrom:
         resourceFieldRef:
           resource: limits.cpu
+    {{- end }}
     {{- if .CompliancePolicy }}
     - name: COMPLIANCE_POLICY
       value: "{{ .CompliancePolicy }}"

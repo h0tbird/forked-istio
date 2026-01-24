@@ -3,9 +3,9 @@ entries:
   base:
   - apiVersion: v2
     appVersion: 1.28.3-patch.1-dev
-    created: "2026-01-24T14:53:32.583435837Z"
+    created: "2026-01-24T14:58:51.050207305Z"
     description: Helm chart for deploying Istio cluster resources and CRDs
-    digest: 590f99e4e3faefa10b512c7848c679b601b18cd2f989f10c0c13ba58c4c7d9a2
+    digest: d9c1aba676a2a56fc48381c61a22078171b3e4b352e2f09fdbffba5252e947a4
     icon: https://istio.io/latest/favicons/android-192x192.png
     keywords:
     - istio
@@ -18,9 +18,9 @@ entries:
   cni:
   - apiVersion: v2
     appVersion: 1.28.3-patch.1-dev
-    created: "2026-01-24T14:53:32.589140629Z"
+    created: "2026-01-24T14:58:51.051158138Z"
     description: Helm chart for istio-cni components
-    digest: 925a73d9187070033ebd0872020ecf1fcdd23ddaee8f97ce725a62e8637eea01
+    digest: 92aef82d4551ad097e323bfade4a4aec63c541cb57371f50a571308d8e55a394
     icon: https://istio.io/latest/favicons/android-192x192.png
     keywords:
     - istio-cni
@@ -34,9 +34,9 @@ entries:
   gateway:
   - apiVersion: v2
     appVersion: 1.28.3-patch.1-dev
-    created: "2026-01-24T14:53:32.593390671Z"
+    created: "2026-01-24T14:58:51.052052096Z"
     description: Helm chart for deploying Istio gateways
-    digest: d0e29ab64fbd2621adce17a9cdba13b66be6c7d203a7117704ede7e2449ef857
+    digest: 44fb1f7804b8f378dde7941e5278371a323ef9692cb5a00534c1cffd43dcc2e9
     icon: https://istio.io/latest/favicons/android-192x192.png
     keywords:
     - istio
@@ -51,9 +51,9 @@ entries:
   istiod:
   - apiVersion: v2
     appVersion: 1.28.3-patch.1-dev
-    created: "2026-01-24T14:53:32.601804879Z"
+    created: "2026-01-24T14:58:51.056196263Z"
     description: Helm chart for istio control plane
-    digest: d279304fd6e5f729f1e5e6b7621dd5dee6fbb8c01b9bd01e23729f47d6de9c88
+    digest: 5c64894bd77bc4df6c95f0f26c16304e63f91814275ca8541828b30ed1208cbb
     icon: https://istio.io/latest/favicons/android-192x192.png
     keywords:
     - istio
@@ -68,9 +68,9 @@ entries:
   ztunnel:
   - apiVersion: v2
     appVersion: 1.28.3-patch.1-dev
-    created: "2026-01-24T14:53:32.617476879Z"
+    created: "2026-01-24T14:58:51.059469221Z"
     description: Helm chart for istio ztunnel components
-    digest: 85faf6597145c81ab8889aad3c74f7a677f80efbde40ecba8421bdbb8c71fd77
+    digest: 9a38e70871f94ed04d08a6a0f2b8e89f8844939e533ba6df9ba5574807b303b8
     icon: https://istio.io/latest/favicons/android-192x192.png
     keywords:
     - istio-ztunnel
@@ -81,4 +81,4 @@ entries:
     urls:
     - https://h0tbird.github.io/forked-istio/ztunnel-1.28.3-patch.1-dev.tgz
     version: 1.28.3-patch.1-dev
-generated: "2026-01-24T14:53:32.578498504Z"
+generated: "2026-01-24T14:58:51.04762143Z"

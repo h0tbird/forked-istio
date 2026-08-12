@@ -16,13 +16,17 @@ package queue
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 
-	"go.uber.org/atomic"
+	uberatomic "go.uber.org/atomic"
 	"k8s.io/apimachinery/pkg/util/rand"
 
 	"istio.io/istio/pkg/log"
 )
+
+// XXXX leak tracing: counts queues currently running. Each running queue keeps its collection alive.
+var liveQueues atomic.Int64
 
 // Task to be performed.
 type Task func() error
@@ -58,7 +62,7 @@ type queueImpl struct {
 	closed    chan struct{}
 	closeOnce *sync.Once
 	// initialSync indicates the queue has initially "synced".
-	initialSync  *atomic.Bool
+	initialSync  *uberatomic.Bool
 	id           string
 	metrics      *queueMetrics
 	syncCallback func()
@@ -83,7 +87,7 @@ func NewQueueWithID(errorDelay time.Duration, name string) Instance {
 		closing:     false,
 		closed:      make(chan struct{}),
 		closeOnce:   &sync.Once{},
-		initialSync: atomic.NewBool(false),
+		initialSync: uberatomic.NewBool(false),
 		cond:        sync.NewCond(&sync.Mutex{}),
 		id:          name,
 		metrics:     newQueueMetrics(name),
@@ -156,7 +160,9 @@ func (q *queueImpl) HasSynced() bool {
 
 func (q *queueImpl) Run(stop <-chan struct{}) {
 	log.Debugf("started queue %s", q.id)
+	log.Infof("XXXX [QUEUE] (+) queue started id=%q liveQueues=%d", q.id, liveQueues.Add(1))
 	defer func() {
+		log.Infof("XXXX [QUEUE] (-) queue stopped id=%q liveQueues=%d", q.id, liveQueues.Add(-1))
 		q.closeOnce.Do(func() {
 			log.Debugf("closed queue %s", q.id)
 			close(q.closed)

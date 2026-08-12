@@ -15,14 +15,18 @@
 package ambient
 
 import (
+	"fmt"
+
 	v1 "k8s.io/api/core/v1"
 
 	"istio.io/api/label"
 	"istio.io/istio/pilot/pkg/util/protoconv"
+	"istio.io/istio/pkg/cluster"
 	"istio.io/istio/pkg/kube/krt"
 	"istio.io/istio/pkg/kube/multicluster"
 	"istio.io/istio/pkg/log"
 	"istio.io/istio/pkg/ptr"
+	"istio.io/istio/pkg/slices"
 	"istio.io/istio/pkg/workloadapi"
 )
 
@@ -41,6 +45,7 @@ func (n Node) Equals(o Node) bool {
 }
 
 func GlobalNodesCollection(
+	ctrl *multicluster.Controller,
 	nodes krt.Collection[krt.Collection[krt.ObjectWithCluster[*v1.Node]]],
 	opts ...krt.CollectionOption,
 ) krt.Collection[krt.Collection[krt.ObjectWithCluster[Node]]] {
@@ -51,6 +56,25 @@ func GlobalNodesCollection(
 			if clusterID == nil {
 				panic("cluster metadata is nil for Node collection")
 			}
+			id, ok := clusterID.(cluster.ID)
+			if !ok {
+				panic(fmt.Sprintf("invalid cluster metadata set on Node collection: %v", clusterID))
+			}
+			// N.B the inner collection must be shut down with the cluster it belongs to, NEVER with the
+			// top-level stop. Otherwise it outlives the cluster and keeps the cluster's client, informers
+			// and caches alive: a rebuilt cluster (for instance on a token rotation) leaks all of it.
+			c := krt.FetchOne(ctx, ctrl.Clusters(), krt.FilterKey(id.String()))
+			if c == nil {
+				log.Warnf("Cluster %s is gone, skipping node locality collection", id)
+				return nil
+			}
+			innerOpts := append(slices.Clone(opts),
+				krt.WithName(fmt.Sprintf("ambient/NodeLocalityWithCluster[%s]", id)),
+				krt.WithStop((*c).GetStop()),
+				krt.WithMetadata(krt.Metadata{
+					multicluster.ClusterKRTMetadataKey: id,
+				}),
+			)
 			nc := krt.NewCollection(col, func(ctx krt.HandlerContext, obj krt.ObjectWithCluster[*v1.Node]) *krt.ObjectWithCluster[Node] {
 				k := ptr.Flatten(obj.Object)
 				if k == nil {
@@ -76,9 +100,7 @@ func GlobalNodesCollection(
 					ClusterID: obj.ClusterID,
 					Object:    node,
 				}
-			}, append(opts, krt.WithMetadata(krt.Metadata{
-				multicluster.ClusterKRTMetadataKey: clusterID,
-			}))...)
+			}, innerOpts...)
 			return ptr.Of(nc)
 		},
 		opts...)

@@ -170,7 +170,7 @@ func MapCollection[T, U any](
 		mapFunc:        mapFunc,
 		metadata:       metadata,
 	}
-	maybeRegisterCollectionForDebugging[U](m, o.debugger)
+	maybeRegisterCollectionForDebugging[U](m, o.debugger, o.stop)
 	return m
 }
 

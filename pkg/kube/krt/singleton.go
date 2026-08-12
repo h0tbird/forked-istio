@@ -62,7 +62,7 @@ func NewStatic[T any](initial *T, startSynced bool, opts ...CollectionOption) St
 	if o.metadata != nil {
 		x.metadata = o.metadata
 	}
-	maybeRegisterCollectionForDebugging(x, o.debugger)
+	maybeRegisterCollectionForDebugging(x, o.debugger, o.stop)
 	return collectionAdapter[T]{x}
 }
 

@@ -241,8 +241,18 @@ func (f *informerFactory) WaitForCacheSync(stopCh <-chan struct{}) bool {
 }
 
 func (f *informerFactory) Shutdown() {
+	// XXXX leak tracing: Shutdown only refuses future Start() calls; the running informers keep going until the
+	// stop channel they were started with is closed, and their caches stay alive as long as anything references them.
+	f.lock.Lock()
+	log.Infof("XXXX [INFORMER] (-) factory shutdown requested informers=%d startedInformers=%d alreadyShuttingDown=%t",
+		len(f.informers), f.startedInformers.Len(), f.shuttingDown)
+	f.lock.Unlock()
+
 	// Will return immediately if there is nothing to wait for.
-	defer f.wg.Wait()
+	defer func() {
+		f.wg.Wait()
+		log.Infof("XXXX [INFORMER] (-) factory shutdown complete, all informer goroutines returned")
+	}()
 
 	f.lock.Lock()
 	defer f.lock.Unlock()

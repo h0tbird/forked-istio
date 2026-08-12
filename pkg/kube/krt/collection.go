@@ -222,6 +222,13 @@ type manyCollection[I, O any] struct {
 	// eventHandlers is a list of event handlers registered for the collection. On any changes, each will be notified.
 	eventHandlers *handlerSet[O]
 
+	// dependencyRegistrations holds the handlers we registered on other collections via Fetch. They must be
+	// removed when we stop, otherwise a longer-lived dependency keeps this collection (and its caches) alive.
+	// Guarded by dependencyRegistrationsMu.
+	dependencyRegistrationsMu sync.Mutex
+	dependencyRegistrations   []HandlerRegistration
+	dependenciesClosed        bool
+
 	transformation TransformationMulti[I, O]
 
 	// augmentation allows transforming an object into another for usage throughout the library. See WithObjectAugmentation.
@@ -633,7 +640,7 @@ func newManyCollection[I, O any](
 		name:   h.collectionName,
 		synced: h.synced,
 	}
-	maybeRegisterCollectionForDebugging(h, opts.debugger)
+	maybeRegisterCollectionForDebugging(h, opts.debugger, opts.stop)
 
 	// Create our queue. When it syncs (that is, all items that were present when Run() was called), we mark ourselves as synced.
 	h.queue = queue.NewWithSync(func() {
@@ -650,13 +657,15 @@ func newManyCollection[I, O any](
 }
 
 func (h *manyCollection[I, O]) runQueue() {
+	// Once we stop, drop the handlers we registered on our dependencies; they may outlive us.
+	defer h.unregisterDependencies()
 	c := h.parent
 	// Wait for primary dependency to be ready
 	if !c.WaitUntilSynced(h.stop) {
 		return
 	}
 	// Now register to our primary collection. On any event, we will enqueue the update.
-	syncer := c.RegisterBatch(func(o []Event[I]) {
+	reg := c.RegisterBatch(func(o []Event[I]) {
 		if h.onPrimaryInputEventHandler != nil {
 			h.onPrimaryInputEventHandler(o)
 		}
@@ -665,8 +674,10 @@ func (h *manyCollection[I, O]) runQueue() {
 			return nil
 		})
 	}, true)
+	// The parent may outlive us, so make sure this handler is removed when we stop.
+	h.trackDependencyRegistration(reg)
 	// Wait for everything initial state to be enqueued
-	if !syncer.WaitUntilSynced(h.stop) {
+	if !reg.WaitUntilSynced(h.stop) {
 		return
 	}
 	h.queue.Run(h.stop)
@@ -814,7 +825,7 @@ func (i *collectionDependencyTracker[I, O]) name() string {
 func (i *collectionDependencyTracker[I, O]) registerDependency(
 	d *dependency,
 	syncer Syncer,
-	register func(f erasedEventHandler) Syncer,
+	register func(f erasedEventHandler) HandlerRegistration,
 ) {
 	i.d = append(i.d, d)
 
@@ -824,13 +835,17 @@ func (i *collectionDependencyTracker[I, O]) registerDependency(
 	// For any new collections we depend on, start watching them if its the first time we have watched them.
 	if !existed {
 		i.log.WithLabels("collection", d.collectionName).Debugf("register new dependency")
+		log.Infof("XXXX [KRT-DEP] (+) registering dependency handler registrant=%q registrantUID=%v dependency=%q dependencyUID=%v liveDependencyHandlers=%d",
+			i.collectionName, i.id, d.collectionName, d.id, liveDependencyHandlers.Load()+1)
 		syncer.WaitUntilSynced(i.stop)
-		register(func(o []Event[any]) {
+		reg := register(func(o []Event[any]) {
 			i.queue.Push(func() error {
 				i.onSecondaryDependencyEvent(d.id, o)
 				return nil
 			})
-		}).WaitUntilSynced(i.stop)
+		})
+		reg.WaitUntilSynced(i.stop)
+		i.trackDependencyRegistration(reg)
 	}
 }
 
@@ -839,4 +854,53 @@ func (i *collectionDependencyTracker[I, O]) _internalHandler() {
 
 func (i *collectionDependencyTracker[I, O]) DiscardResult() {
 	i.discardUpdate = true
+}
+
+// trackDependencyRegistration stores a handler we registered on another collection so it can be removed when we
+// stop. If we already stopped, the handler is removed right away.
+func (h *manyCollection[I, O]) trackDependencyRegistration(reg HandlerRegistration) {
+	h.dependencyRegistrationsMu.Lock()
+	if h.dependenciesClosed {
+		h.dependencyRegistrationsMu.Unlock()
+		reg.UnregisterHandler()
+		return
+	}
+	// Drop registrations on collections that have since stopped. They can never fire again, and keeping them
+	// would pin the dead collection (and its caches) for as long as we live. This matters for long lived
+	// collections that depend on per-cluster ones, which are recreated whenever a remote cluster is rebuilt.
+	before := len(h.dependencyRegistrations)
+	h.dependencyRegistrations = slices.FilterInPlace(h.dependencyRegistrations, func(r HandlerRegistration) bool {
+		return !registrationStopped(r)
+	})
+	pruned := before - len(h.dependencyRegistrations)
+	h.dependencyRegistrations = append(h.dependencyRegistrations, reg)
+	h.dependencyRegistrationsMu.Unlock()
+	liveDependencyHandlers.Add(int64(1 - pruned))
+	if pruned > 0 {
+		log.Infof("XXXX [KRT-DEP] (~) dropped %d registrations on stopped collections registrant=%q registrantUID=%v liveDependencyHandlers=%d",
+			pruned, h.collectionName, h.id, liveDependencyHandlers.Load())
+	}
+}
+
+// unregisterDependencies removes every handler this collection registered on other collections (its primary
+// input and everything it Fetch()ed). Those collections can outlive us (a per-cluster collection routinely
+// depends on process-lifetime globals) and the handler closure references this collection, so leaving them
+// registered pins the entire collection, its indexes and its caches forever.
+func (h *manyCollection[I, O]) unregisterDependencies() {
+	h.dependencyRegistrationsMu.Lock()
+	regs := h.dependencyRegistrations
+	h.dependencyRegistrations = nil
+	h.dependenciesClosed = true
+	h.dependencyRegistrationsMu.Unlock()
+
+	for _, reg := range regs {
+		if registrationStopped(reg) {
+			continue
+		}
+		reg.UnregisterHandler()
+	}
+	if len(regs) > 0 {
+		log.Infof("XXXX [KRT-DEP] (-) unregistered %d dependency handlers registrant=%q registrantUID=%v liveDependencyHandlers=%d",
+			len(regs), h.collectionName, h.id, liveDependencyHandlers.Add(int64(-len(regs))))
+	}
 }

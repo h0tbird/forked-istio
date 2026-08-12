@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"fmt"
+	"runtime"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -358,6 +359,10 @@ func (c *Controller) HasSynced() bool {
 
 func (c *Controller) processItem(key types.NamespacedName) error {
 	log.Infof("processing remote config event for %s", key)
+	log.Infof("XXXX [EVENT] (>) begin remote config event key=%s %s", key, leakDebugStats())
+	defer func() {
+		log.Infof("XXXX [EVENT] (<) end remote config event key=%s %s", key, leakDebugStats())
+	}()
 	cfg := c.source.Get(key)
 	if cfg != nil {
 		if cfg.Err != nil {
@@ -403,18 +408,34 @@ func (c *Controller) createRemoteCluster(secretKey types.NamespacedName, kubeCon
 	if err != nil {
 		return nil, err
 	}
-	return &Cluster{
+	sha := sha256.Sum256(kubeConfig)
+	log.Infof("XXXX [CLIENT] (+) built a brand new kube.Client cluster=%s secret=%s kubeconfigSha=%x %s",
+		clusterID, secretKey, sha[:6], leakDebugStats())
+	remote := &Cluster{
 		ID:                       cluster.ID(clusterID),
 		Client:                   clients,
 		SourceSecret:             secretKey,
 		stop:                     make(chan struct{}),
 		initialSync:              atomic.NewBool(false),
 		initialSyncTimeout:       atomic.NewBool(false),
-		kubeConfigSha:            sha256.Sum256(kubeConfig),
+		kubeConfigSha:            sha,
 		syncStatusCallback:       c.onClusterSyncStatusChange,
 		SyncedCh:                 make(chan struct{}),
 		remoteClusterCollections: atomic.NewPointer[remoteClusterCollections](nil),
-	}, nil
+	}
+	// XXXX leak tracing: if this finalizer never fires for a superseded cluster, something still references it.
+	runtime.SetFinalizer(remote, func(old *Cluster) {
+		log.Infof("XXXX [GC] (*) Cluster object was garbage collected cluster=%s kubeconfigSha=%x", old.ID, old.kubeConfigSha[:6])
+	})
+	return remote, nil
+}
+
+// leakDebugStats returns a compact runtime snapshot used by the XXXX leak-tracing logs.
+func leakDebugStats() string {
+	var ms runtime.MemStats
+	runtime.ReadMemStats(&ms)
+	return fmt.Sprintf("goroutines=%d heapInUseMB=%d krtCollectionsCreated=%d",
+		runtime.NumGoroutine(), ms.HeapInuse/(1024*1024), krt.CollectionsCreated())
 }
 
 func (c *Controller) addRemoteConfig(name types.NamespacedName, cfg *remoteConfig) error {
@@ -444,14 +465,20 @@ func (c *Controller) addRemoteConfig(name types.NamespacedName, cfg *remoteConfi
 			kubeConfigSha := sha256.Sum256(kubeConfig)
 			if bytes.Equal(kubeConfigSha[:], prev.kubeConfigSha[:]) {
 				logger.Infof("skipping update (kubeconfig are identical)")
+				logger.Infof("XXXX [SECRET] (=) no-op, kubeconfig is byte identical sha=%x", kubeConfigSha[:6])
 				continue
 			}
+			// XXXX leak tracing: a token-only change lands here and forces a full make-before-break rebuild.
+			logger.Infof("XXXX [SECRET] (~) kubeconfig changed, rebuilding the entire remote cluster stack oldSha=%x newSha=%x %s",
+				prev.kubeConfigSha[:6], kubeConfigSha[:6], leakDebugStats())
 			// Don't stop the previous cluster here - it will be stopped after the new cluster syncs.
 			// This ensures zero service disruption during credential rotation.
 		} else if c.cs.Contains(cluster.ID(clusterID)) {
 			// if the cluster has been registered before by another secret, ignore the new one.
 			logger.Warnf("cluster has already been registered")
 			continue
+		} else {
+			logger.Infof("XXXX [SECRET] (+) first time seeing this cluster, building it from scratch")
 		}
 		logger.Infof("%s cluster", action)
 
@@ -468,6 +495,8 @@ func (c *Controller) addRemoteConfig(name types.NamespacedName, cfg *remoteConfi
 		// We run cluster async so we do not block, as this requires actually connecting to the cluster and loading configuration.
 		// Swap stores the new cluster and returns a PendingClusterSwap that manages cleanup of the previous cluster.
 		swap := c.cs.Swap(configKey, remoteCluster.ID, remoteCluster)
+		logger.Infof("XXXX [CLUSTER] (%s) starting Cluster.Run action=%s previousClusterRetained=%t",
+			marker(action), action, swap.prev != nil)
 		go func() {
 			remoteCluster.Run(c.meshWatcher, c.handlers, action, swap, c.debugger)
 		}()
@@ -492,11 +521,13 @@ func (c *Controller) deleteRemoteConfig(configKey string) {
 
 func (c *Controller) deleteCluster(configKey string, cluster *Cluster) {
 	log.Infof("Deleting cluster_id=%v configured by secret=%v", cluster.ID, configKey)
+	log.Infof("XXXX [CLUSTER] (-) deleting cluster=%s secret=%s %s", cluster.ID, configKey, leakDebugStats())
 	cluster.Stop()
 	c.handleDelete(cluster.ID)
 	c.cs.Delete(configKey, cluster.ID)
 	c.clearClusterSyncState(cluster.ID)
 	cluster.Client.Shutdown() // Shutdown all of the informers so that the goroutines won't leak
+	log.Infof("XXXX [CLUSTER] (-) delete finished cluster=%s %s", cluster.ID, leakDebugStats())
 
 	log.Infof("Number of remote clusters: %d", c.cs.Len())
 }

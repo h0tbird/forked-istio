@@ -17,6 +17,8 @@ package krt
 import (
 	"encoding/json"
 	"sync"
+
+	"istio.io/istio/pkg/slices"
 )
 
 // DebugHandler allows attaching a variety of collections to it and then dumping them
@@ -26,9 +28,21 @@ type DebugHandler struct {
 }
 
 func (p *DebugHandler) MarshalJSON() ([]byte, error) {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return json.Marshal(p.debugCollections)
+	p.mu.Lock()
+	p.pruneStopped()
+	collections := slices.Clone(p.debugCollections)
+	p.mu.Unlock()
+	return json.Marshal(collections)
+}
+
+// pruneStopped drops collections that have been stopped. Callers must hold the write lock.
+// Without this, the debugger holds a reference to every collection ever created; in a multicluster setup
+// collections are recreated each time a remote cluster is rebuilt (for instance on a token rotation), so the
+// list -- and everything it keeps alive -- grows without bound.
+func (p *DebugHandler) pruneStopped() {
+	p.debugCollections = slices.FilterInPlace(p.debugCollections, func(c DebugCollection) bool {
+		return !c.stopped()
+	})
 }
 
 var GlobalDebugHandler = new(DebugHandler)
@@ -51,6 +65,20 @@ type DebugCollection struct {
 	name string
 	dump func() CollectionDump
 	uid  collectionUID
+	// stop is closed when the collection is no longer running, at which point it can be dropped from the debugger.
+	stop <-chan struct{}
+}
+
+func (p DebugCollection) stopped() bool {
+	if p.stop == nil {
+		return false
+	}
+	select {
+	case <-p.stop:
+		return true
+	default:
+		return false
+	}
 }
 
 func (p DebugCollection) MarshalJSON() ([]byte, error) {
@@ -61,19 +89,24 @@ func (p DebugCollection) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// maybeRegisterCollectionForDebugging registers the collection in the debugger, if one is enabled
-func maybeRegisterCollectionForDebugging[T any](c Collection[T], handler *DebugHandler) {
+// maybeRegisterCollectionForDebugging registers the collection in the debugger, if one is enabled.
+// stop is the collection's stop channel; the entry is dropped once it is closed.
+func maybeRegisterCollectionForDebugging[T any](c Collection[T], handler *DebugHandler, stop <-chan struct{}) {
 	if handler == nil {
 		return
 	}
 	cc := c.(internalCollection[T])
 	handler.mu.Lock()
 	defer handler.mu.Unlock()
+	handler.pruneStopped()
 	handler.debugCollections = append(handler.debugCollections, DebugCollection{
 		name: cc.name(),
 		dump: cc.dump,
 		uid:  cc.uid(),
+		stop: stop,
 	})
+	log.Debugf("XXXX [KRT-DEBUG] (+) collection registered in DebugHandler name=%v uid=%v debugHandlerEntries=%d totalCollectionsCreated=%d",
+		cc.name(), cc.uid(), len(handler.debugCollections), CollectionsCreated())
 }
 
 // nolint: unused // (not true, not sure why it thinks it is!)

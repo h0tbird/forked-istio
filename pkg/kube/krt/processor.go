@@ -29,10 +29,26 @@ import (
 type handlerRegistration struct {
 	Syncer
 	remove func()
+	// stop is the stop channel of the collection the handler was registered on.
+	stop <-chan struct{}
 }
+
+// XXXX leak tracing counters. These only ever go up if teardown is broken.
+var (
+	// liveDependencyHandlers counts Fetch()-driven dependency handlers that were registered and never removed.
+	liveDependencyHandlers atomic.Int64
+	// liveListeners counts processorListeners (2 goroutines + a 1024-slot ring buffer each) currently registered.
+	liveListeners atomic.Int64
+	// totalListeners counts every processorListener ever created.
+	totalListeners atomic.Int64
+)
 
 func (h handlerRegistration) UnregisterHandler() {
 	h.remove()
+}
+
+func (h handlerRegistration) collectionStopped() bool {
+	return isStopped(h.stop)
 }
 
 // handlerSet tracks a set of handlers. Handlers can be added at any time.
@@ -60,6 +76,10 @@ func (o *handlerSet[O]) Insert(
 	o.handlers.Insert(l)
 	o.wg.Start(l.run)
 	o.wg.Start(l.pop)
+	// XXXX leak tracing: each listener is 2 goroutines plus a 1024-slot ring buffer, and it stays here until
+	// its stop channel closes or UnregisterHandler() is called.
+	log.Infof("XXXX [KRT-LISTENER] (+) listener added type=%T handlersOnCollection=%d liveListeners=%d totalListenersEverCreated=%d",
+		*new(O), len(o.handlers), liveListeners.Add(1), totalListeners.Add(1))
 	var sendSynced bool
 	if initialSynced {
 		// If we are already synced, and there are no events to handle, we should mark ourselves synced right away.
@@ -100,6 +120,7 @@ func (o *handlerSet[O]) Insert(
 		remove: func() {
 			o.remove(l)
 		},
+		stop: stopCh,
 	}
 	return reg
 }
@@ -110,6 +131,8 @@ func (o *handlerSet[O]) remove(p *processorListener[O]) {
 
 	delete(o.handlers, p)
 	close(p.addCh)
+	log.Infof("XXXX [KRT-LISTENER] (-) listener removed type=%T handlersOnCollection=%d liveListeners=%d",
+		*new(O), len(o.handlers), liveListeners.Add(-1))
 }
 
 func (o *handlerSet[O]) Distribute(events []Event[O], initialSync bool) {
@@ -240,6 +263,9 @@ func (p *processorListener[O]) run() {
 	for {
 		select {
 		case <-p.stop:
+			// XXXX leak tracing: the goroutines exit here. The listener stays in the handlerSet, but that
+			// handlerSet belongs to the collection that just stopped, so it is garbage as a whole.
+			log.Infof("XXXX [KRT-LISTENER] (-) listener goroutines exiting via stop channel type=%T liveListeners=%d", *new(O), liveListeners.Add(-1))
 			return
 		case nextr, ok := <-p.nextCh:
 			if !ok {

@@ -15,6 +15,7 @@
 package multicluster
 
 import (
+	"runtime"
 	"sync"
 
 	"istio.io/istio/pkg/cluster"
@@ -46,8 +47,15 @@ type PendingClusterSwap struct {
 func (p *PendingClusterSwap) Complete() {
 	if p.prev != nil {
 		log.Infof("stopping previous cluster %s after new cluster synced", p.clusterID)
+		// XXXX leak tracing: this is the only teardown of the superseded cluster. It closes the stop channel and
+		// shuts the informer factory down, but does NOT unregister krt handlers or debug collections.
+		log.Infof("XXXX [SWAP] (-) tearing down superseded cluster=%s kubeconfigSha=%x krtCollectionsCreated=%d",
+			p.clusterID, p.prev.kubeConfigSha[:6], krt.CollectionsCreated())
 		p.prev.Stop()
 		p.prev.Client.Shutdown()
+		log.Infof("XXXX [SWAP] (-) teardown returned cluster=%s goroutines=%d", p.clusterID, runtime.NumGoroutine())
+	} else {
+		log.Infof("XXXX [SWAP] (+) nothing to tear down, this was a fresh cluster=%s", p.clusterID)
 	}
 }
 

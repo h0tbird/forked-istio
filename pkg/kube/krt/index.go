@@ -121,7 +121,7 @@ func (i index[K, O]) AsCollection(opts ...CollectionOption) IndexCollection[K, O
 	if o.metadata != nil {
 		c.metadata = o.metadata
 	}
-	maybeRegisterCollectionForDebugging(c, o.debugger)
+	maybeRegisterCollectionForDebugging(c, o.debugger, o.stop)
 	return c
 }
 

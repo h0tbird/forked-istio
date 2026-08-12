@@ -162,6 +162,17 @@ func (a ACTION) String() string {
 	return "Unknown"
 }
 
+// marker returns a short visual tag used by the XXXX leak-tracing logs: (+) add, (~) update, (-) delete.
+func marker(a ACTION) string {
+	switch a {
+	case Add:
+		return "+"
+	case Update:
+		return "~"
+	}
+	return "?"
+}
+
 // Run starts the cluster's informers, builds KRT collections, invokes handler callbacks, and waits for caches to sync.
 // Once caches are synced, we mark the cluster synced.
 // For local/config clusters with pre-existing collections, it simply waits for those collections to sync.
@@ -194,6 +205,9 @@ func (c *Cluster) Run(mesh meshwatcher.WatcherCollection, handlers []handler, ac
 	if swap != nil {
 		defer swap.Complete()
 	}
+
+	log.Infof("XXXX [RUN] (%s) building a fresh remote cluster stack cluster=%s action=%s handlers=%d krtCollectionsCreated=%d",
+		marker(action), c.ID, action, len(handlers), krt.CollectionsCreated())
 
 	c.reportStatus(SyncStatusSyncing)
 	if features.RemoteClusterTimeout > 0 {
@@ -238,6 +252,8 @@ func (c *Cluster) Run(mesh meshwatcher.WatcherCollection, handlers []handler, ac
 			syncers = append(syncers, h.clusterUpdated(c))
 		}
 	}
+	log.Infof("XXXX [RUN] (%s) informers and handler components built cluster=%s action=%s krtCollectionsCreated=%d",
+		marker(action), c.ID, action, krt.CollectionsCreated())
 
 	if !c.Client.RunAndWait(c.stop) {
 		log.Warnf("remote cluster %s failed to sync", c.ID)
@@ -274,6 +290,8 @@ func (c *Cluster) Run(mesh meshwatcher.WatcherCollection, handlers []handler, ac
 
 	c.initialSync.Store(true)
 	c.reportStatus(SyncStatusSynced)
+	log.Infof("XXXX [RUN] (%s) new cluster stack synced, previous one is about to be torn down cluster=%s action=%s krtCollectionsCreated=%d",
+		marker(action), c.ID, action, krt.CollectionsCreated())
 
 	// Signal that sync is complete
 	c.closeSyncedCh()
@@ -366,6 +384,7 @@ func (c *Cluster) Stop() {
 	case <-c.stop:
 		return
 	default:
+		log.Infof("XXXX [STOP] (-) closing cluster stop channel cluster=%s kubeconfigSha=%x", c.ID, c.kubeConfigSha[:6])
 		close(c.stop)
 		c.reportStatus(SyncStatusClosed)
 	}

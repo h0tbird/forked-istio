@@ -25,6 +25,7 @@ import (
 	"istio.io/istio/pkg/kube/kclient"
 	"istio.io/istio/pkg/kube/krt"
 	"istio.io/istio/pkg/kube/kubetypes"
+	"istio.io/istio/pkg/log"
 	"istio.io/istio/pkg/maps"
 	"istio.io/istio/pkg/slices"
 	"istio.io/istio/pkg/util/sets"
@@ -63,6 +64,7 @@ func (p *pendingSwap[T]) HasSynced() bool {
 	// New component is synced, finalize the swap by closing the old one
 	p.mu.Lock()
 	if p.hasOld {
+		log.Infof("XXXX [COMPONENT] (-) closing old component after swap cluster=%s type=%T", p.clusterID, p.old)
 		p.old.Close()
 		p.hasOld = false
 	}
@@ -121,6 +123,7 @@ func (m *Component[T]) All() []T {
 
 func (m *Component[T]) clusterAdded(cluster *Cluster) ComponentConstraint {
 	comp := m.constructor(cluster)
+	log.Infof("XXXX [COMPONENT] (+) constructed component for added cluster=%s type=%T", cluster.ID, comp)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.clusters[cluster.ID] = comp
@@ -139,6 +142,7 @@ func (m *Component[T]) clusterUpdated(cluster *Cluster) ComponentConstraint {
 	comp := m.constructor(cluster)
 	// Clear the temporary reference
 	cluster.prevComponent = nil
+	log.Infof("XXXX [COMPONENT] (~) constructed replacement component cluster=%s type=%T hadOldComponent=%t", cluster.ID, comp, hasOld)
 
 	// Create pendingSwap to track both old and new components
 	ps := &pendingSwap[T]{
@@ -168,6 +172,7 @@ func (m *Component[T]) clusterDeleted(cluster k8scluster.ID) {
 	defer m.mu.Unlock()
 	// If there is an old one, close it
 	if old, f := m.clusters[cluster]; f {
+		log.Infof("XXXX [COMPONENT] (-) closing component for deleted cluster=%s type=%T", cluster, old)
 		old.Close()
 	}
 	delete(m.clusters, cluster)

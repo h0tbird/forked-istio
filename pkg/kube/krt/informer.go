@@ -39,6 +39,7 @@ type informer[I controllers.ComparableObject] struct {
 	eventHandlers *handlers[I]
 	augmentation  func(a any) any
 	synced        chan struct{}
+	stop          <-chan struct{}
 	baseSyncer    Syncer
 	metadata      Metadata
 }
@@ -132,12 +133,19 @@ func (i *informer[I]) RegisterBatch(f func(o []Event[I]), runExistingState bool)
 		remove: func() {
 			i.inf.ShutdownHandler(synced)
 		},
+		stop: i.stop,
 	}
 }
 
 type informerHandlerRegistration struct {
 	Syncer
 	remove func()
+	stop   <-chan struct{}
+}
+
+// nolint: unused // (not true)
+func (i informerHandlerRegistration) collectionStopped() bool {
+	return isStopped(i.stop)
 }
 
 func (i informerHandlerRegistration) UnregisterHandler() {
@@ -206,6 +214,7 @@ func WrapClient[I controllers.ComparableObject](c kclient.Informer[I], opts ...C
 		eventHandlers:  &handlers[I]{},
 		augmentation:   o.augmentation,
 		synced:         make(chan struct{}),
+		stop:           o.stop,
 	}
 	h.baseSyncer = channelSyncer{
 		name:   h.collectionName,
@@ -227,7 +236,7 @@ func WrapClient[I controllers.ComparableObject](c kclient.Informer[I], opts ...C
 
 		<-o.stop
 	}()
-	maybeRegisterCollectionForDebugging(h, o.debugger)
+	maybeRegisterCollectionForDebugging(h, o.debugger, o.stop)
 	return h
 }
 

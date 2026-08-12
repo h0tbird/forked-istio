@@ -73,7 +73,7 @@ func NewStaticCollection[T any](synced Syncer, vals []T, opts ...CollectionOptio
 	c := StaticCollection[T]{
 		staticList: sl,
 	}
-	maybeRegisterCollectionForDebugging[T](c, o.debugger)
+	maybeRegisterCollectionForDebugging[T](c, o.debugger, o.stop)
 	return c
 }
 

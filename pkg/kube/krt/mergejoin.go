@@ -421,7 +421,7 @@ func JoinWithMergeCollection[T any](cs []Collection[T], merge func(ts []T) *T, o
 		},
 	}
 
-	maybeRegisterCollectionForDebugging(j, o.debugger)
+	maybeRegisterCollectionForDebugging(j, o.debugger, o.stop)
 
 	// Create our queue. When it syncs (that is, all items that were present when Run() was called), we mark ourselves as synced.
 	j.queue = queue.NewWithSync(func() {

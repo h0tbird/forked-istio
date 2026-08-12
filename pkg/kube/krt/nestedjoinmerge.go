@@ -96,7 +96,7 @@ func NestedJoinWithMergeCollection[T any](collections Collection[Collection[T]],
 		synced: j.synced,
 	}
 
-	maybeRegisterCollectionForDebugging(j, o.debugger)
+	maybeRegisterCollectionForDebugging(j, o.debugger, o.stop)
 
 	// Create our queue. When it syncs (that is, all items that were present when Run() was called), we mark ourselves as synced.
 	j.queue = queue.NewWithSync(func() {
@@ -124,6 +124,8 @@ func NestedJoinWithMergeCollection[T any](collections Collection[Collection[T]],
 				reg := obj.RegisterBatch(subscriptionFunc, true)
 				j.mu.Lock()
 				j.regs[obj.(internalCollection[T]).uid()] = reg
+				log.Infof("XXXX [NESTED] (+) subscribed to inner collection parent=%q inner=%q innerUID=%v subscriptions=%d",
+					j.collectionName, obj.(internalCollection[T]).name(), obj.(internalCollection[T]).uid(), len(j.regs))
 				j.mu.Unlock()
 			case controllers.EventUpdate:
 				j.handleCollectionUpdate(ev)
@@ -181,6 +183,15 @@ func (j *nestedjoinmerge[T]) handleCollectionUpdate(e Event[Collection[T]]) {
 	// Stop the world and update our outputs with new state for everything in the collection.
 	j.mu.Lock()
 	defer j.mu.Unlock()
+
+	// XXXX leak tracing: on a cluster rebuild the inner collection is swapped for a brand new one (new uid).
+	// This path never unregisters the old subscription nor subscribes to the new one; both are visible here.
+	oldUID := oldCollectionValue.(internalCollection[T]).uid()
+	newUID := newCollectionValue.(internalCollection[T]).uid()
+	_, hasOldReg := j.regs[oldUID]
+	_, hasNewReg := j.regs[newUID]
+	log.Infof("XXXX [NESTED] (~) inner collection replaced parent=%q inner=%q oldUID=%v newUID=%v staleRegForOld=%t regForNew=%t subscriptions=%d",
+		j.collectionName, innerCollection.name(), oldUID, newUID, hasOldReg, hasNewReg, len(j.regs))
 
 	oldItems := oldCollectionValue.List()
 	// Convert it to a map for easy lookup
@@ -278,8 +289,12 @@ func (j *nestedjoinmerge[T]) handleCollectionDelete(e Event[Collection[T]]) {
 	if reg, ok := j.regs[cc.uid()]; ok {
 		reg.UnregisterHandler()
 		delete(j.regs, cc.uid())
+		log.Infof("XXXX [NESTED] (-) unsubscribed from inner collection parent=%q inner=%q innerUID=%v subscriptions=%d",
+			j.collectionName, cc.name(), cc.uid(), len(j.regs))
 	} else {
 		j.log.Warnf("NestedJoinWithMergeCollection: No registration found for collection %s during delete event", cc.uid())
+		log.Infof("XXXX [NESTED] (!) delete with no matching subscription parent=%q inner=%q innerUID=%v subscriptions=%d",
+			j.collectionName, cc.name(), cc.uid(), len(j.regs))
 	}
 
 	// Now we must send a final set of remove events for each object in the collection

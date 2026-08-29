@@ -1,0 +1,10 @@
+apiVersion: release-notes/v2
+kind: bug-fix
+area: traffic-management
+issue:
+  - 60033
+releaseNotes:
+  - |
+    **Fixed** istiod retaining memory when remote clusters are removed or updated. Long lived
+    internal collections kept the event handler registrations they had made on per-cluster
+    collections, pinning the discarded cluster's clients and informer caches in memory.

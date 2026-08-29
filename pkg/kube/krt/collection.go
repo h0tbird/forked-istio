@@ -57,6 +57,21 @@ type extractorKey struct {
 	typ       indexedDependencyType
 }
 
+// pruneStoppedDependencies drops handlers registered on collections that have since stopped. They can never
+// fire again and cannot be meaningfully unregistered, but holding the registration pins the dead collection
+// (and its indexes, clients and informer caches) for as long as we live. This matters for long lived
+// collections that Fetch per-cluster ones, which are recreated whenever a remote cluster is rebuilt.
+// Callers must hold the lock protecting the dependency state.
+func (i dependencyState[I]) pruneStoppedDependencies() {
+	for uid, reg := range i.collectionDependencyHandlers {
+		if !registrationStopped(reg) {
+			continue
+		}
+		delete(i.collectionDependencyHandlers, uid)
+		i.collectionDependencies.Delete(uid)
+	}
+}
+
 func (i dependencyState[I]) update(key Key[I], deps []*dependency) {
 	// We will override the current dependencies with the new ones, so
 	// we first remove the existing dependencies from the reverse index
@@ -853,6 +868,7 @@ func (i *collectionDependencyTracker[I, O]) registerDependency(
 			})
 		})
 		i.mu.Lock()
+		i.dependencyState.pruneStoppedDependencies()
 		if h.WaitUntilSynced(i.stop) {
 			i.dependencyState.collectionDependencyHandlers[d.id] = h
 		} else {

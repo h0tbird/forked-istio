@@ -112,6 +112,35 @@ type dependency struct {
 
 type erasedEventHandler = func(o []Event[any])
 
+// stoppableRegistration is implemented by HandlerRegistrations that know the lifetime of the collection they
+// were registered on.
+type stoppableRegistration interface {
+	collectionStopped() bool
+}
+
+// isStopped reports whether a stop channel has been closed. A nil channel means "runs forever".
+func isStopped(stop <-chan struct{}) bool {
+	if stop == nil {
+		return false
+	}
+	select {
+	case <-stop:
+		return true
+	default:
+		return false
+	}
+}
+
+// registrationStopped reports whether the collection a handler was registered on has stopped. Such a
+// registration is useless: the handler is never called again and cannot be meaningfully unregistered, so the
+// registrant should drop it rather than hold on to the (potentially large) collection it refers to.
+func registrationStopped(reg HandlerRegistration) bool {
+	if s, ok := reg.(stoppableRegistration); ok {
+		return s.collectionStopped()
+	}
+	return false
+}
+
 // registerDependency is an internal interface for things that can register dependencies.
 // This is called from Fetch to Collections, generally.
 type registerDependency interface {

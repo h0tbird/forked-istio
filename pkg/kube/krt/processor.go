@@ -29,10 +29,16 @@ import (
 type handlerRegistration struct {
 	Syncer
 	remove func()
+	// stop is the stop channel of the collection this handler was registered on.
+	stop <-chan struct{}
 }
 
 func (h handlerRegistration) UnregisterHandler() {
 	h.remove()
+}
+
+func (h handlerRegistration) collectionStopped() bool {
+	return isStopped(h.stop)
 }
 
 // handlerSet tracks a set of handlers. Handlers can be added at any time.
@@ -100,6 +106,7 @@ func (o *handlerSet[O]) Insert(
 		remove: func() {
 			o.remove(l)
 		},
+		stop: l.stop,
 	}
 	return reg
 }
